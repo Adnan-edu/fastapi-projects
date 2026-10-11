@@ -1,0 +1,72 @@
+# ─── Python ────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+.eggs/
+build/
+dist/
+develop-eggs/
+.installed.cfg
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ─── Virtual environments ──────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+.python-version       # uv writes this; uncomment if you want it tracked
+!.python-version      # …actually keep it: pins the interpreter for the project
+
+# ─── uv ────────────────────────────────────────────────────────────────────
+.uv/
+uv.lock.bak
+
+# ─── Test / coverage ───────────────────────────────────────────────────────
+.pytest_cache/
+.cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+nosetests.xml
+.tox/
+.nox/
+.hypothesis/
+
+# ─── Type checkers / linters ──────────────────────────────────────────────
+.mypy_cache/
+.pyre/
+.pytype/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+
+# ─── Job output (regenerated on every run — do not commit) ─────────────────
+exports/
+exports/**
+*.csv
+!tests/fixtures/*.csv  # …unless a test fixture explicitly lives there
+
+# ─── Local env / secrets ───────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── IDE / editor ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+.DS_Store
+Thumbs.db
+
+# ─── Docker / runtime scratch ──────────────────────────────────────────────
+*.pid
+*.log
+logs/

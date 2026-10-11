@@ -1,0 +1,33 @@
+# Virtual environment
+fastapi_prometheus_env/
+
+# Environment files
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Pytest
+.pytest_cache/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Prometheus / Grafana data volumes
+prometheus/data/
+grafana/data/
+*.prom
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

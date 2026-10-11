@@ -1,0 +1,100 @@
+# Microservice deployment: separate workers per domain + Redis
+# Each worker has its own queue_name for isolation
+# Run: docker compose -f docker-compose.micro.yml up
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATABASE_URL=sqlite+aiosqlite:///./task_queue.db
+    volumes:
+      - .:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Email worker - processes tasks from the "email" queue
+  worker-email:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATABASE_URL=sqlite+aiosqlite:///./task_queue.db
+    volumes:
+      - .:/app
+    command: arq app.tasks.worker.WorkerSettingsEmail
+
+  # Payment worker - processes tasks from the "payment" queue
+  worker-payment:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATABASE_URL=sqlite+aiosqlite:///./task_queue.db
+    volumes:
+      - .:/app
+    command: arq app.tasks.worker.WorkerSettingsPayment
+
+  # Report worker - processes tasks from the "report" queue
+  worker-report:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATABASE_URL=sqlite+aiosqlite:///./task_queue.db
+    volumes:
+      - .:/app
+    command: arq app.tasks.worker.WorkerSettingsReport
+
+  # General worker - processes remaining tasks from default queue
+  worker-general:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATABASE_URL=sqlite+aiosqlite:///./task_queue.db
+    volumes:
+      - .:/app
+    command: arq app.tasks.worker.WorkerSettings
+
+volumes:
+  redis_data:

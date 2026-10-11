@@ -1,0 +1,36 @@
+# Logs produced at runtime
+logs/
+test_logs/
+
+# Environment
+.env
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+fastapi_logging/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

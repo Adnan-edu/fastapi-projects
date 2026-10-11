@@ -1,0 +1,42 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CACHE_TTL: 30
+      CACHE_TTL_PRODUCT: 60
+      CACHE_TTL_LIST: 15
+      SIMULATED_DB_DELAY: 0.4
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Learning UI (optional): docker compose --profile tools up redis-commander
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    ports:
+      - "8081:8081"
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles: ["tools"]
+
+volumes:
+  redis_data:

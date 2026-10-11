@@ -1,0 +1,11 @@
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    redis_url: str = "redis://localhost:6379/0"
+    report_simulated_delay: float = 5.0
+
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+
+
+settings = Settings()

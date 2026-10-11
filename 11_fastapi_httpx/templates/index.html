@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastAPI + HTTPX Performance Lab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: rgba(17, 24, 39, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.4);
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.4);
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.4);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --text-dark: #6b7280;
+            --glass-blur: blur(12px);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.12) 0px, transparent 50%),
+                radial-gradient(at 50% 50%, rgba(139, 92, 246, 0.08) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 2rem;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+        }
+
+        /* Header section */
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        .logo-area {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .badge-lightning {
+            background: linear-gradient(135deg, #f59e0b, #ef4444);
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
+        }
+
+        h1 {
+            font-size: 2.75rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #3b82f6, #60a5fa, #10b981);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .subtitle a {
+            color: var(--primary);
+            text-decoration: none;
+            border-bottom: 1px dashed var(--primary);
+            transition: all 0.2s;
+        }
+
+        .subtitle a:hover {
+            color: #60a5fa;
+            border-bottom-style: solid;
+        }
+
+        /* Responsive Grid Layout */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+
+        @media (min-width: 1024px) {
+            .dashboard-grid {
+                grid-template-columns: 1.2fr 0.8fr;
+            }
+        }
+
+        /* Glassmorphism Card Style */
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border-color);
+            border-radius: 1.25rem;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s, box-shadow 0.3s;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .card:hover {
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4), 0 0 1px 1px rgba(255, 255, 255, 0.1) inset;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 1rem;
+        }
+
+        .card-title {
+            font-size: 1.35rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-title-icon {
+            color: var(--primary);
+        }
+
+        .card-desc {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-top: -1rem;
+        }
+
+        /* Action Buttons */
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0.75rem;
+        }
+
+        @media (min-width: 640px) {
+            .btn-group {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 0.85rem 1.25rem;
+            border-radius: 0.75rem;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), #1d4ed8);
+            border-color: transparent;
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #60a5fa, #2563eb);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success), #047857);
+            border-color: transparent;
+            box-shadow: 0 4px 15px var(--success-glow);
+        }
+
+        .btn-success:hover {
+            background: linear-gradient(135deg, #34d399, #059669);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, var(--danger), #b91c1c);
+            border-color: transparent;
+            box-shadow: 0 4px 15px var(--danger-glow);
+        }
+
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #f87171, #dc2626);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.6);
+        }
+
+        /* Large Benchmark All Button */
+        .btn-run-all {
+            grid-column: 1 / -1;
+            padding: 1.1rem;
+            font-size: 1.05rem;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6, #10b981);
+            border-color: transparent;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
+        }
+
+        .btn-run-all:hover {
+            background: linear-gradient(90deg, #60a5fa, #a78bfa, #34d399);
+            box-shadow: 0 8px 25px rgba(139, 92, 246, 0.5);
+        }
+
+        /* Performance Chart Wrapper */
+        .chart-container {
+            position: relative;
+            height: 250px;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        /* Event Loop Test section */
+        .event-loop-lab {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .test-box {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .test-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .status-idle { color: var(--text-muted); background: rgba(255, 255, 255, 0.05); }
+        .status-running { color: var(--warning); background: rgba(245, 158, 11, 0.1); animation: pulse 1.5s infinite; }
+        .status-success { color: var(--success); background: rgba(16, 185, 129, 0.1); }
+        .status-blocked { color: var(--danger); background: rgba(239, 68, 68, 0.1); }
+
+        .ping-results-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.5rem;
+        }
+
+        .ping-dot {
+            height: 36px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-family: 'JetBrains Mono', monospace;
+            transition: all 0.3s;
+        }
+
+        .ping-dot.pending {
+            border-color: var(--warning);
+            color: var(--warning);
+            background: rgba(245, 158, 11, 0.05);
+        }
+
+        .ping-dot.success {
+            border-color: var(--success);
+            color: var(--success);
+            background: rgba(16, 185, 129, 0.1);
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+        }
+
+        .ping-dot.delayed {
+            border-color: var(--danger);
+            color: var(--danger);
+            background: rgba(239, 68, 68, 0.1);
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
+        }
+
+        /* Console Output */
+        .console {
+            background: #05070c;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: #38bdf8;
+            height: 250px;
+            overflow-y: auto;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .console-line {
+            line-height: 1.4;
+            white-space: pre-wrap;
+            border-left: 2px solid transparent;
+            padding-left: 0.5rem;
+        }
+
+        .console-info { border-left-color: var(--primary); color: #e2e8f0; }
+        .console-success { border-left-color: var(--success); color: #34d399; }
+        .console-warn { border-left-color: var(--warning); color: #fbbf24; }
+        .console-error { border-left-color: var(--danger); color: #f87171; }
+        .console-system { border-left-color: #8b5cf6; color: #c084fc; }
+
+        /* Weather data visualizer */
+        .weather-feed {
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 0.75rem;
+            padding: 1rem;
+        }
+
+        .weather-header {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .weather-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .weather-card {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            text-align: center;
+        }
+
+        .weather-city {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .weather-temp {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin: 0.25rem 0;
+        }
+
+        .weather-wind {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        /* Animations */
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo-area">
+                <span class="badge-lightning">⚡ Performance Lab</span>
+            </div>
+            <h1>FastAPI + HTTPX Performance Lab</h1>
+            <p class="subtitle">
+                Demonstrating HTTP connection reuse and non-blocking I/O. Inspired by the article:
+                <a href="https://medium.com/@inprogrammer/my-fastapi-app-was-slow-this-one-fix-made-it-80-faster-1f3b3905e20d?sk=eef45e313a8d3fb5a1ceec8cf82b42ff" target="_blank">
+                    "My FastAPI App Was Slow. This One Fix Made It 80% Faster"
+                </a>
+            </p>
+        </header>
+
+        <div class="dashboard-grid">
+            <!-- Left Column: Benchmarks & Visualizer -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-title-icon">📊</span>
+                        HTTPClient Performance Benchmark
+                    </span>
+                    <span id="benchmark-status" class="status-badge status-idle">Ready</span>
+                </div>
+                <p class="card-desc">Execute weather forecasts (5 heavy API calls to Open-Meteo) using different patterns and observe real latencies.</p>
+                
+                <div class="btn-group">
+                    <button class="btn btn-danger" onclick="runBenchmark('/api/blocking', 'Sync Sequential')">
+                        ❌ 1. Sync (Requests)
+                    </button>
+                    <button class="btn" onclick="runBenchmark('/api/async-new-client', 'Async Sequential (New)')">
+                        ⚠️ 2. Async (New Client)
+                    </button>
+                    <button class="btn btn-primary" onclick="runBenchmark('/api/async-pooled', 'Async Sequential (Pooled)')">
+                        ⚙️ 3. Async (Pooled)
+                    </button>
+                    <button class="btn btn-success" onclick="runBenchmark('/api/async-concurrent', 'Async Concurrent')">
+                        🚀 4. Async Concurrent
+                    </button>
+                    <button class="btn btn-run-all" onclick="runAllBenchmarks()">
+                        ⚡ Run All & Compare Performance
+                    </button>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="performanceChart"></canvas>
+                </div>
+
+                <div class="weather-feed">
+                    <div class="weather-header">Latest Fetched Weather Data</div>
+                    <div class="weather-grid" id="weather-display">
+                        <div class="weather-card" style="grid-column: 1 / -1; color: var(--text-dark); font-style: italic;">
+                            No weather data fetched yet. Click a benchmark button to retrieve real data.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Interactive Event Loop Simulator & Logger -->
+            <div class="card" style="gap: 1.25rem;">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-title-icon">🌀</span>
+                        Event Loop Blockage Simulator
+                    </span>
+                </div>
+                <p class="card-desc">Prove how a single blocking request completely freezes FastAPI for parallel users, while async non-blocking sleep handles load seamlessly.</p>
+                
+                <div class="event-loop-lab">
+                    <!-- Blocking Test Box -->
+                    <div class="test-box">
+                        <div class="test-title">
+                            Blocking Test (time.sleep)
+                            <span id="blocking-test-status" class="status-badge status-idle">Idle</span>
+                        </div>
+                        <button class="btn btn-danger" id="btn-run-blocking" onclick="runEventLoopTest('blocking')">
+                            🚨 Trigger Blocking & Run Pings
+                        </button>
+                        <div class="ping-results-grid" id="blocking-pings">
+                            <div class="ping-dot">P1</div>
+                            <div class="ping-dot">P2</div>
+                            <div class="ping-dot">P3</div>
+                            <div class="ping-dot">P4</div>
+                            <div class="ping-dot">P5</div>
+                        </div>
+                    </div>
+
+                    <!-- Async Test Box -->
+                    <div class="test-box">
+                        <div class="test-title">
+                            Non-Blocking Test (asyncio.sleep)
+                            <span id="async-test-status" class="status-badge status-idle">Idle</span>
+                        </div>
+                        <button class="btn btn-success" id="btn-run-async" onclick="runEventLoopTest('async')">
+                            🟢 Trigger Async & Run Pings
+                        </button>
+                        <div class="ping-results-grid" id="async-pings">
+                            <div class="ping-dot">P1</div>
+                            <div class="ping-dot">P2</div>
+                            <div class="ping-dot">P3</div>
+                            <div class="ping-dot">P4</div>
+                            <div class="ping-dot">P5</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 1rem;">
+                    <div class="weather-header">Terminal Console Output</div>
+                    <div class="console" id="console-logs">
+                        <div class="console-line console-system">[System] FastAPI HTTPX Performance Lab initialized. Ready for commands...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Setup Chart
+        const ctx = document.getElementById('performanceChart').getContext('2d');
+        const performanceChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Sync Sequential', 'Async Seq (New Client)', 'Async Seq (Pooled)', 'Async Concurrent'],
+                datasets: [{
+                    label: 'Latency / Execution Time (seconds)',
+                    data: [0, 0, 0, 0],
+                    backgroundColor: [
+                        'rgba(239, 68, 68, 0.65)',  // red for sync blocking
+                        'rgba(245, 158, 11, 0.65)',  // amber for new client
+                        'rgba(59, 130, 246, 0.65)',  // blue for pooled seq
+                        'rgba(16, 185, 129, 0.8)'    // green for pooled concurrent
+                    ],
+                    borderColor: [
+                        '#ef4444',
+                        '#f59e0b',
+                        '#3b82f6',
+                        '#10b981'
+                    ],
+                    borderWidth: 1.5,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)'
+                        },
+                        ticks: {
+                            color: '#9ca3af',
+                            callback: function(value) { return value + 's'; }
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            color: '#9ca3af'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Console utility
+        function log(message, type = 'info') {
+            const consoleBox = document.getElementById('console-logs');
+            const line = document.createElement('div');
+            line.className = `console-line console-${type}`;
+            const now = new Date().toLocaleTimeString();
+            line.textContent = `[${now}] ${message}`;
+            consoleBox.appendChild(line);
+            consoleBox.scrollTop = consoleBox.scrollHeight;
+        }
+
+        // Render fetched weather
+        function updateWeatherDisplay(results) {
+            const container = document.getElementById('weather-display');
+            container.innerHTML = '';
+            
+            if (!results || results.length === 0) {
+                container.innerHTML = `<div class="weather-card" style="grid-column: 1 / -1; color: var(--text-dark); font-style: italic;">No data returned.</div>`;
+                return;
+            }
+
+            results.forEach(res => {
+                const card = document.createElement('div');
+                card.className = 'weather-card';
+                if (res.status === 'success') {
+                    card.innerHTML = `
+                        <div class="weather-city">${res.location}</div>
+                        <div class="weather-temp">${res.temp !== null ? res.temp + '°C' : 'N/A'}</div>
+                        <div class="weather-wind">💨 ${res.windspeed !== null ? res.windspeed + ' km/h' : 'N/A'}</div>
+                    `;
+                } else {
+                    card.innerHTML = `
+                        <div class="weather-city" style="color: var(--danger);">${res.location}</div>
+                        <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 5px;">Fetch Failed</div>
+                    `;
+                }
+                container.appendChild(card);
+            });
+        }
+
+        // Run singular benchmark
+        async function runBenchmark(url, name) {
+            const statusBadge = document.getElementById('benchmark-status');
+            statusBadge.className = "status-badge status-running";
+            statusBadge.textContent = "Running...";
+            
+            log(`Starting benchmark for: ${name}...`, 'info');
+            
+            try {
+                const start = performance.now();
+                const response = await fetch(url);
+                const data = await response.json();
+                const end = performance.now();
+                
+                const serverTime = data.time_taken;
+                const clientTime = (end - start) / 1000;
+                
+                log(`Successfully completed ${name}!`, 'success');
+                log(`Server-side execution: ${serverTime.toFixed(4)}s`, 'success');
+                log(`Total HTTP trip: ${clientTime.toFixed(4)}s`, 'success');
+                log(`Method description: ${data.description}`, 'system');
+
+                updateWeatherDisplay(data.results);
+                
+                // Update chart
+                let index = 0;
+                if (name.includes('Sync')) index = 0;
+                else if (name.includes('New')) index = 1;
+                else if (name.includes('Sequential (Pooled)')) index = 2;
+                else if (name.includes('Concurrent')) index = 3;
+                
+                performanceChart.data.datasets[0].data[index] = serverTime;
+                performanceChart.update();
+
+                statusBadge.className = "status-badge status-success";
+                statusBadge.textContent = "Success";
+                
+                return serverTime;
+            } catch (err) {
+                log(`Error executing benchmark ${name}: ${err.message}`, 'error');
+                statusBadge.className = "status-badge status-blocked";
+                statusBadge.textContent = "Error";
+                return 0;
+            }
+        }
+
+        // Run all sequentially to compare
+        async function runAllBenchmarks() {
+            log(`=== STARTING BULK BENCHMARK ANALYSIS ===`, 'system');
+            
+            const syncTime = await runBenchmark('/api/blocking', 'Sync Sequential');
+            // Small pause between runs to let the server breathe
+            await new Promise(r => setTimeout(r, 800));
+            
+            const asyncNewTime = await runBenchmark('/api/async-new-client', 'Async Sequential (New)');
+            await new Promise(r => setTimeout(r, 800));
+            
+            const asyncPooledTime = await runBenchmark('/api/async-pooled', 'Async Sequential (Pooled)');
+            await new Promise(r => setTimeout(r, 800));
+            
+            const concurrentTime = await runBenchmark('/api/async-concurrent', 'Async Concurrent');
+            
+            log(`=== BENCHMARK SUMMARY ===`, 'system');
+            log(`1. Sync Sequential (Blocking): ${syncTime.toFixed(3)}s`, 'error');
+            log(`2. Async Sequential (New Client): ${asyncNewTime.toFixed(3)}s`, 'warn');
+            log(`3. Async Sequential (Pooled): ${asyncPooledTime.toFixed(3)}s`, 'info');
+            log(`4. Async Concurrent (Pooled + gather): ${concurrentTime.toFixed(3)}s`, 'success');
+            
+            const speedup = ((syncTime - concurrentTime) / syncTime * 100);
+            log(`🚀 The connection-pooled concurrent method is ${speedup.toFixed(1)}% FASTER than the sync blocking requests!`, 'success');
+        }
+
+        // Event Loop Blockage Test
+        async function runEventLoopTest(type) {
+            const isBlocking = type === 'blocking';
+            const testStatus = document.getElementById(`${type}-test-status`);
+            const pingsContainer = document.getElementById(`${type}-pings`);
+            const btn = document.getElementById(`btn-run-${type}`);
+            
+            btn.disabled = true;
+            testStatus.className = "status-badge status-running";
+            testStatus.textContent = "Running Load...";
+            
+            // Reset ping display dots
+            const dots = pingsContainer.querySelectorAll('.ping-dot');
+            dots.forEach(dot => {
+                dot.className = "ping-dot pending";
+                dot.textContent = "---";
+                dot.style.boxShadow = "none";
+            });
+
+            log(`[Lab] Triggering heavy 3s ${isBlocking ? 'BLOCKING (time.sleep)' : 'ASYNC (asyncio.sleep)'} endpoint...`, 'system');
+            
+            // 1. Fire the heavy 3-second request
+            const heavyEndpointUrl = isBlocking ? '/api/mock-blocking' : '/api/mock-async';
+            const heavyPromise = fetch(heavyEndpointUrl)
+                .then(r => r.json())
+                .then(data => {
+                    log(`[Lab] Heavy ${type} request completed in ${data.time_taken.toFixed(2)}s`, isBlocking ? 'error' : 'success');
+                    testStatus.className = isBlocking ? "status-badge status-blocked" : "status-badge status-success";
+                    testStatus.textContent = isBlocking ? "Blocked Loop" : "Completed";
+                    btn.disabled = false;
+                });
+
+            // Helper to delay ping firing to let the event loop register the first request
+            const sleep = ms => new Promise(r => setTimeout(r, ms));
+            
+            // 2. Fire 5 rapid parallel ping requests (each spaced 200ms apart)
+            const pingPromises = Array.from({ length: 5 }).map(async (_, idx) => {
+                await sleep(200 + (idx * 200)); // space out pings
+                
+                const pingDot = dots[idx];
+                pingDot.textContent = "PING";
+                
+                const start = performance.now();
+                try {
+                    const response = await fetch('/api/ping');
+                    const data = await response.json();
+                    const duration = (performance.now() - start);
+                    
+                    pingDot.textContent = `${duration.toFixed(0)}ms`;
+                    
+                    if (duration > 1000) {
+                        // The ping was severely delayed because the event loop was frozen
+                        pingDot.className = "ping-dot delayed";
+                        log(`⚠️ Ping P${idx+1} took ${duration.toFixed(0)}ms! (Event loop was FROZEN)`, 'error');
+                    } else {
+                        // Ping resolved instantly because loop is responsive
+                        pingDot.className = "ping-dot success";
+                        log(`✓ Ping P${idx+1} took ${duration.toFixed(0)}ms (Fast & Responsive)`, 'success');
+                    }
+                } catch (err) {
+                    pingDot.textContent = "ERR";
+                    pingDot.className = "ping-dot delayed";
+                    log(`✗ Ping P${idx+1} failed: ${err.message}`, 'error');
+                }
+            });
+
+            // Wait for both load and pings to complete
+            await Promise.all([heavyPromise, ...pingPromises]);
+        }
+    </script>
+</body>
+</html>
