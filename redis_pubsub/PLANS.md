@@ -217,7 +217,7 @@ Rules:
 
 ## Session 2 — RED first, then the thin end-to-end fan-out slice
 
-- [ ] **2.1 Write only the first behavior test.**
+- [x] **2.1 Write only the first behavior test.**
 
   Create `${PROJECT_ROOT}/tests/__init__.py` and `${PROJECT_ROOT}/tests/test_pubsub.py`. Do not create `${PROJECT_ROOT}/app` yet. Put this exact test in `${PROJECT_ROOT}/tests/test_pubsub.py`:
 
@@ -282,7 +282,7 @@ Rules:
 
   This is one user journey: two clients subscribe, both receive a fan-out message, and disconnected clients stop counting as subscribers. Unique channels prevent cross-test interference.
 
-- [ ] **2.2 Run the test and prove RED before implementation.**
+- [x] **2.2 Run the test and prove RED before implementation.**
 
   ```bash
   cd "$PROJECT_ROOT"
@@ -293,7 +293,7 @@ Rules:
 
   Required red result: collection fails with `ModuleNotFoundError: No module named 'app'`. Record the command and failure in the Session Log. If it fails because Redis or a dependency is unavailable, fix Session 1 first; that is not the intended application red.
 
-- [ ] **2.3 Implement only the vertical slice needed by this test.**
+- [x] **2.3 Implement only the vertical slice needed by this test.**
 
   Create `${PROJECT_ROOT}/app/__init__.py`, `${PROJECT_ROOT}/app/models.py`, and `${PROJECT_ROOT}/app/main.py`:
 
@@ -307,7 +307,7 @@ Rules:
 
   Prefer `redis.asyncio`, `get_message(ignore_subscribe_messages=True, timeout=None)` for forwarding, explicit `subscribe`-acknowledgment handling for readiness, and `asyncio.wait(..., return_when=asyncio.FIRST_COMPLETED)` or an equivalently correct task pattern. Do not use synchronous `redis.Redis` in async routes.
 
-- [ ] **2.4 Run the same test until GREEN, then run the whole suite.**
+- [x] **2.4 Run the same test until GREEN, then run the whole suite.**
 
   ```bash
   cd "$PROJECT_ROOT"
@@ -523,7 +523,7 @@ Push `main` only when every merged-result check passes. Confirm `main` and `orig
 |---|---|---|---|---|
 | 2026-10-29 planning | Read fundamentals; confirmed WebSocket seam; created plan, executor prompt, feature branch, and ignore rules | Not run yet; Session 2 must produce it | Environment and Docker availability inspected; planning task committed and pushed | Execute Session 1 |
 | 2026-10-30 Session 1 | Completed 1.1–1.5: recorded Python 3.13.14, uv 0.11.28, and the project `.venv` interpreter; added runtime/test dependencies; created `uv.lock`, Redis 8 Compose service, `.env.example`, and pytest discovery/timeout configuration | Not applicable: Session 1 creates no application test or code; Session 2 initial RED remains pending | `uv sync --frozen` and dependency imports passed; Compose validation passed; Redis is healthy and `redis-cli PING` returned `PONG`; ignore rules and pytest configuration verified; no `app/` directory exists | Execute Session 2: add the exact fan-out test and capture pre-implementation RED |
-|  |  |  |  |  |
+| 2026-10-30 Session 2 | Completed 2.1–2.4: added the exact public fan-out/cleanup test; implemented the async Redis lifespan, publish route, per-WebSocket Pub/Sub, subscribe readiness, concurrent forwarding/disconnect detection, and shielded resource cleanup | `uv run pytest "$PROJECT_ROOT/tests/test_pubsub.py" -q` before creating `app/`: collection failed as expected with `ModuleNotFoundError: No module named 'app'` | Docker Redis `PING` returned `PONG`; the focused test and `uv run pytest` passed (`1 passed`), including the eventual post-disconnect `subscriber_count == 0`; `compileall` passed; no skips/xfails or resource-cleanup warnings (one Starlette `httpx` deprecation warning); no manual checks in this session | Execute Session 3: validation and channel isolation, one behavior at a time |
 
 ## 8. Useful recovery commands
 
