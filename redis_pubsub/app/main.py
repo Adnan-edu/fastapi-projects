@@ -1,0 +1,108 @@
+import asyncio
+import os
+import re
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from pathlib import Path as FilePath
+from typing import Annotated
+
+import anyio
+import redis.asyncio as redis
+from fastapi import FastAPI, HTTPException, Path, WebSocket
+from fastapi.responses import FileResponse
+from redis.exceptions import RedisError
+
+from app.models import CHANNEL_PATTERN, PublishRequest, PublishResponse
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    redis_client = redis.from_url(
+        os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+        decode_responses=True,
+    )
+    app.state.redis_client = redis_client
+    try:
+        await redis_client.ping()
+        yield
+    finally:
+        await redis_client.aclose()
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get("/", include_in_schema=False)
+async def browser_demo() -> FileResponse:
+    return FileResponse(FilePath(__file__).parent / "static" / "index.html")
+
+
+@app.post("/channels/{channel}/messages", response_model=PublishResponse)
+async def publish_message(
+    channel: Annotated[str, Path(pattern=CHANNEL_PATTERN)],
+    request: PublishRequest,
+) -> PublishResponse:
+    try:
+        subscriber_count = await app.state.redis_client.publish(channel, request.message)
+    except RedisError as exc:
+        raise HTTPException(status_code=503, detail="Redis publish unavailable") from exc
+    return PublishResponse(channel=channel, subscriber_count=subscriber_count)
+
+
+async def forward_messages(websocket: WebSocket, pubsub: redis.client.PubSub, channel: str) -> None:
+    while True:
+        message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=None)
+        if message is not None and message["type"] == "message":
+            await websocket.send_json(
+                {
+                    "type": "message",
+                    "channel": channel,
+                    "message": message["data"],
+                }
+            )
+
+
+async def watch_disconnect(websocket: WebSocket) -> None:
+    while True:
+        message = await websocket.receive()
+        if message["type"] == "websocket.disconnect":
+            return
+
+
+@app.websocket("/ws/{channel}")
+async def subscribe_to_channel(websocket: WebSocket, channel: str) -> None:
+    if re.fullmatch(CHANNEL_PATTERN, channel) is None:
+        await websocket.close(code=1008)
+        return
+
+    await websocket.accept()
+    pubsub = websocket.app.state.redis_client.pubsub()
+    tasks: set[asyncio.Task[None]] = set()
+    try:
+        await pubsub.subscribe(channel)
+        while True:
+            message = await pubsub.get_message(timeout=None)
+            if (
+                message is not None
+                and message["type"] == "subscribe"
+                and message["channel"] == channel
+            ):
+                break
+        await websocket.send_json({"type": "subscribed", "channel": channel})
+
+        tasks = {
+            asyncio.create_task(forward_messages(websocket, pubsub, channel)),
+            asyncio.create_task(watch_disconnect(websocket)),
+        }
+        done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        for task in done:
+            task.result()
+    except RedisError:
+        await websocket.close(code=1011)
+    finally:
+        with anyio.CancelScope(shield=True):
+            for task in tasks:
+                task.cancel()
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+            await pubsub.aclose()

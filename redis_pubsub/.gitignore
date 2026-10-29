@@ -1,0 +1,70 @@
+# Python bytecode and build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+*.egg
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Test, coverage, and analysis caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.pytype/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+*.cover
+.tox/
+.nox/
+
+# Editors and operating systems
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+Thumbs.db
+
+# Logs and local databases
+logs/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+
+# Redis persistence files (Pub/Sub itself is non-durable)
+dump.rdb
+*.rdb
+*.aof
+
+# Local Compose overrides; shared compose.yaml stays tracked
+compose.override.yml
+compose.override.yaml
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# Local-only reference and executor prompt
+/Redis_Pub_Sub_Fundamentals.md
+/PROMPT.md
