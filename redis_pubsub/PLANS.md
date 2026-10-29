@@ -325,7 +325,7 @@ Rules:
 
 Keep Redis running. Add each test to the indicated file, run it before the related implementation, and record its actual result.
 
-- [ ] **3.1 RED: reject invalid message lengths through the HTTP seam.**
+- [x] **3.1 RED: reject invalid message lengths through the HTTP seam.**
 
   In `${PROJECT_ROOT}/tests/test_validation.py`, add `test_message_length_validation`: inside `with TestClient(app) as client`, POST to a fresh valid channel with `{"message": ""}` and then with a string of 10,001 characters. Assert `422` for both; no WebSocket is needed.
 
@@ -335,15 +335,15 @@ Keep Redis running. Add each test to the indicated file, run it before the relat
 
   Expected initial red: the empty message currently publishes and returns `200`. Only then add Pydantic `Field(min_length=1, max_length=10_000)` to the request model. Re-run the new test and then all tests.
 
-- [ ] **3.2 RED: reject an invalid HTTP channel.**
+- [x] **3.2 RED: reject an invalid HTTP channel.**
 
   Add `test_publish_rejects_invalid_channel`: POST to `/channels/-invalid/messages` with a valid body and assert `422`. Run it and confirm the current route returns `200` instead. Then apply the shared channel regular expression with FastAPI `Path(pattern=...)` (or equivalent public-request validation) and make the test green without changing valid channel behavior.
 
-- [ ] **3.3 RED: reject an invalid WebSocket channel.**
+- [x] **3.3 RED: reject an invalid WebSocket channel.**
 
   Add `test_websocket_rejects_invalid_channel`: use `pytest.raises(WebSocketDisconnect)` around connecting to `/ws/-invalid`, then assert `exc_info.value.code == 1008`. Run it before implementation and record the actual mismatch. Add WebSocket-side validation using the same channel rule; HTTP path validation alone does not protect the WebSocket route. Close before creating a Redis Pub/Sub resource.
 
-- [ ] **3.4 Verify channel isolation through observable messages.**
+- [x] **3.4 Verify channel isolation through observable messages.**
 
   Add `test_messages_do_not_cross_channels` to `${PROJECT_ROOT}/tests/test_pubsub.py`:
 
@@ -358,7 +358,7 @@ Keep Redis running. Add each test to the indicated file, run it before the relat
 
   This may pass immediately because Redis subscriptions already isolate channels. If so, record it as a green characterization test; no production change is needed. If red, fix subscription/forwarding behavior rather than adding test sleeps.
 
-- [ ] **3.5 Verify validation boundaries and regression safety.**
+- [x] **3.5 Verify validation boundaries and regression safety.**
 
   Add `test_valid_boundaries_are_accepted`: through HTTP, a 128-character valid channel and a 10,000-character message should return `200` and `subscriber_count == 0` with no subscribers. Run it before changing anything. It should characterize the completed validation; if it fails, correct only the relevant boundary logic.
 
@@ -524,6 +524,7 @@ Push `main` only when every merged-result check passes. Confirm `main` and `orig
 | 2026-10-29 planning | Read fundamentals; confirmed WebSocket seam; created plan, executor prompt, feature branch, and ignore rules | Not run yet; Session 2 must produce it | Environment and Docker availability inspected; planning task committed and pushed | Execute Session 1 |
 | 2026-10-30 Session 1 | Completed 1.1–1.5: recorded Python 3.13.14, uv 0.11.28, and the project `.venv` interpreter; added runtime/test dependencies; created `uv.lock`, Redis 8 Compose service, `.env.example`, and pytest discovery/timeout configuration | Not applicable: Session 1 creates no application test or code; Session 2 initial RED remains pending | `uv sync --frozen` and dependency imports passed; Compose validation passed; Redis is healthy and `redis-cli PING` returned `PONG`; ignore rules and pytest configuration verified; no `app/` directory exists | Execute Session 2: add the exact fan-out test and capture pre-implementation RED |
 | 2026-10-30 Session 2 | Completed 2.1–2.4: added the exact public fan-out/cleanup test; implemented the async Redis lifespan, publish route, per-WebSocket Pub/Sub, subscribe readiness, concurrent forwarding/disconnect detection, and shielded resource cleanup | `uv run pytest "$PROJECT_ROOT/tests/test_pubsub.py" -q` before creating `app/`: collection failed as expected with `ModuleNotFoundError: No module named 'app'` | Docker Redis `PING` returned `PONG`; the focused test and `uv run pytest` passed (`1 passed`), including the eventual post-disconnect `subscriber_count == 0`; `compileall` passed; no skips/xfails or resource-cleanup warnings (one Starlette `httpx` deprecation warning); no manual checks in this session | Execute Session 3: validation and channel isolation, one behavior at a time |
+| 2026-10-30 Session 3 | Completed 3.1–3.5: enforced 1–10,000-character messages and the shared 1–128-character channel rule on HTTP and WebSocket; invalid WebSockets close with `1008` before accept or Pub/Sub creation; added channel-isolation and valid-boundary coverage | `uv run pytest "$PWD/tests/test_validation.py::test_message_length_validation" -q`: empty message returned `200` instead of `422`; `uv run pytest "$PWD/tests/test_validation.py::test_publish_rejects_invalid_channel" -q`: invalid channel returned `200` instead of `422`; `uv run pytest "$PWD/tests/test_validation.py::test_websocket_rejects_invalid_channel" -q`: `DID NOT RAISE WebSocketDisconnect` instead of close code `1008` | All focused validation tests passed after their implementations; channel isolation and valid boundaries passed immediately as green characterization tests; `uv run pytest` passed (`6 passed`, no skips/xfails) and `compileall` passed; Docker Redis `PING` returned `PONG`; no manual checks in this session | Execute Session 4: add the browser entry-point test and capture its `404` RED before implementing the demo |
 
 ## 8. Useful recovery commands
 

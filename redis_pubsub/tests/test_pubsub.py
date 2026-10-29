@@ -54,3 +54,52 @@ def test_publish_fans_out_and_cleans_up_disconnected_subscribers():
             if time.monotonic() >= deadline:
                 pytest.fail("Redis subscribers remained after WebSocket disconnect")
             time.sleep(0.05)
+
+
+def test_messages_do_not_cross_channels():
+    channel_a = f"test:{uuid4().hex}"
+    channel_b = f"test:{uuid4().hex}"
+
+    with TestClient(app) as client:
+        with (
+            client.websocket_connect(f"/ws/{channel_a}") as subscriber_a,
+            client.websocket_connect(f"/ws/{channel_b}") as subscriber_b,
+        ):
+            assert subscriber_a.receive_json() == {
+                "type": "subscribed",
+                "channel": channel_a,
+            }
+            assert subscriber_b.receive_json() == {
+                "type": "subscribed",
+                "channel": channel_b,
+            }
+
+            response = client.post(
+                f"/channels/{channel_a}/messages",
+                json={"message": "only-a"},
+            )
+            assert response.status_code == 200
+            assert response.json() == {
+                "channel": channel_a,
+                "subscriber_count": 1,
+            }
+            assert subscriber_a.receive_json() == {
+                "type": "message",
+                "channel": channel_a,
+                "message": "only-a",
+            }
+
+            response = client.post(
+                f"/channels/{channel_b}/messages",
+                json={"message": "only-b"},
+            )
+            assert response.status_code == 200
+            assert response.json() == {
+                "channel": channel_b,
+                "subscriber_count": 1,
+            }
+            assert subscriber_b.receive_json() == {
+                "type": "message",
+                "channel": channel_b,
+                "message": "only-b",
+            }

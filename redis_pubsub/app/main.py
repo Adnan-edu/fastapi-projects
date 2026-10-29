@@ -1,13 +1,15 @@
 import asyncio
 import os
+import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Annotated
 
 import anyio
 import redis.asyncio as redis
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, Path, WebSocket
 
-from app.models import PublishRequest, PublishResponse
+from app.models import CHANNEL_PATTERN, PublishRequest, PublishResponse
 
 
 @asynccontextmanager
@@ -28,7 +30,10 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/channels/{channel}/messages", response_model=PublishResponse)
-async def publish_message(channel: str, request: PublishRequest) -> PublishResponse:
+async def publish_message(
+    channel: Annotated[str, Path(pattern=CHANNEL_PATTERN)],
+    request: PublishRequest,
+) -> PublishResponse:
     subscriber_count = await app.state.redis_client.publish(channel, request.message)
     return PublishResponse(channel=channel, subscriber_count=subscriber_count)
 
@@ -55,6 +60,10 @@ async def watch_disconnect(websocket: WebSocket) -> None:
 
 @app.websocket("/ws/{channel}")
 async def subscribe_to_channel(websocket: WebSocket, channel: str) -> None:
+    if re.fullmatch(CHANNEL_PATTERN, channel) is None:
+        await websocket.close(code=1008)
+        return
+
     await websocket.accept()
     pubsub = websocket.app.state.redis_client.pubsub()
     tasks: set[asyncio.Task[None]] = set()
