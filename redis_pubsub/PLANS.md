@@ -161,7 +161,7 @@ Rules:
 
 ## Session 1 — Reproducible environment and real Redis (no application code)
 
-- [ ] **1.1 Activate and record the baseline.**
+- [x] **1.1 Activate and record the baseline.**
 
   ```bash
   cd "$PROJECT_ROOT"
@@ -173,7 +173,7 @@ Rules:
 
   Confirm the interpreter is `${PROJECT_ROOT}/.venv/bin/python`.
 
-- [ ] **1.2 Install runtime and test dependencies.**
+- [x] **1.2 Install runtime and test dependencies.**
 
   ```bash
   cd "$PROJECT_ROOT"
@@ -186,7 +186,7 @@ Rules:
 
   Expected effects: dependencies in `${PROJECT_ROOT}/pyproject.toml`, a created/updated `${PROJECT_ROOT}/uv.lock`, and packages in `${PROJECT_ROOT}/.venv`.
 
-- [ ] **1.3 Create `${PROJECT_ROOT}/compose.yaml` with one throwaway Redis 8 service.**
+- [x] **1.3 Create `${PROJECT_ROOT}/compose.yaml` with one throwaway Redis 8 service.**
 
   Use image `redis:8-alpine`, service name `redis`, host port `6379` mapped to container port `6379`, and health check `redis-cli ping` with interval `1s`, timeout `1s`, and retries `10`. No volume is needed because this demonstrates non-durable Pub/Sub.
 
@@ -199,11 +199,11 @@ Rules:
 
   Required result: `PONG` and a healthy service. If port `6379` is occupied, stop the conflicting Redis or change the host port consistently in `${PROJECT_ROOT}/compose.yaml` and `REDIS_URL`; never run tests against an unknown server.
 
-- [ ] **1.4 Add local configuration and verify ignore rules.**
+- [x] **1.4 Add local configuration and verify ignore rules.**
 
   Create `${PROJECT_ROOT}/.env.example` containing `REDIS_URL=redis://localhost:6379/0`. Do not commit real credentials. Review the existing `${PROJECT_ROOT}/.gitignore`; it covers virtual environments, Python/test caches, local environment files, build artifacts, IDE/OS files, logs, local databases, and Redis persistence files. Keep `.env.example`, `.python-version`, `compose.yaml`, and `uv.lock` tracked. Verify `git check-ignore .env .venv` prints both paths and `git check-ignore .env.example` produces no match.
 
-- [ ] **1.5 Add pytest discovery and deadlock protection to `${PROJECT_ROOT}/pyproject.toml`.**
+- [x] **1.5 Add pytest discovery and deadlock protection to `${PROJECT_ROOT}/pyproject.toml`.**
 
   ```toml
   [tool.pytest.ini_options]
@@ -522,7 +522,7 @@ Push `main` only when every merged-result check passes. Confirm `main` and `orig
 | Date/session | Steps completed | Red evidence (command + expected failure) | Green/manual evidence | Remaining issue or next step |
 |---|---|---|---|---|
 | 2026-10-29 planning | Read fundamentals; confirmed WebSocket seam; created plan, executor prompt, feature branch, and ignore rules | Not run yet; Session 2 must produce it | Environment and Docker availability inspected; planning task committed and pushed | Execute Session 1 |
-|  |  |  |  |  |
+| 2026-10-30 Session 1 | Completed 1.1–1.5: recorded Python 3.13.14, uv 0.11.28, and the project `.venv` interpreter; added runtime/test dependencies; created `uv.lock`, Redis 8 Compose service, `.env.example`, and pytest discovery/timeout configuration | Not applicable: Session 1 creates no application test or code; Session 2 initial RED remains pending | `uv sync --frozen` and dependency imports passed; Compose validation passed; Redis is healthy and `redis-cli PING` returned `PONG`; ignore rules and pytest configuration verified; no `app/` directory exists | Execute Session 2: add the exact fan-out test and capture pre-implementation RED |
 |  |  |  |  |  |
 
 ## 8. Useful recovery commands
