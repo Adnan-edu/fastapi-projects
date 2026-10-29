@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Redis Pub/Sub Demo</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            line-height: 1.5;
+            margin: 2rem auto;
+            max-width: 48rem;
+            padding: 0 1rem;
+        }
+        .controls { display: grid; gap: 1rem; }
+        .control-row {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        input { flex: 1; min-width: 12rem; padding: 0.4rem; }
+        button { padding: 0.4rem 0.8rem; }
+        #message-list { padding-left: 1.5rem; }
+        #message-list li { overflow-wrap: anywhere; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>Redis Pub/Sub Demo</h1>
+        <p>Open this page in multiple tabs and subscribe them to the same channel.</p>
+
+        <div class="controls">
+            <div class="control-row">
+                <label for="channel-input">Channel</label>
+                <input
+                    id="channel-input"
+                    name="channel"
+                    value="notifications"
+                    pattern="[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}"
+                    maxlength="128"
+                    autocomplete="off"
+                    required
+                >
+            </div>
+            <div class="control-row">
+                <button id="connect-button" type="button">Connect</button>
+                <button id="disconnect-button" type="button" disabled>Disconnect</button>
+                <span>Status: <strong id="connection-status">Disconnected</strong></span>
+            </div>
+            <div class="control-row">
+                <label for="message-input">Message</label>
+                <input
+                    id="message-input"
+                    name="message"
+                    minlength="1"
+                    maxlength="10000"
+                    autocomplete="off"
+                    required
+                >
+                <button id="send-button" type="button" disabled>Send</button>
+            </div>
+        </div>
+
+        <p id="publish-result" role="status" aria-live="polite"></p>
+        <h2>Messages</h2>
+        <ul id="message-list" aria-live="polite"></ul>
+    </main>
+
+    <script>
+        "use strict";
+
+        const channelInput = document.getElementById("channel-input");
+        const messageInput = document.getElementById("message-input");
+        const connectButton = document.getElementById("connect-button");
+        const disconnectButton = document.getElementById("disconnect-button");
+        const sendButton = document.getElementById("send-button");
+        const connectionStatus = document.getElementById("connection-status");
+        const publishResult = document.getElementById("publish-result");
+        const messageList = document.getElementById("message-list");
+
+        let socket = null;
+        let subscribed = false;
+
+        function resetUi(statusText) {
+            subscribed = false;
+            channelInput.disabled = false;
+            connectButton.disabled = false;
+            disconnectButton.disabled = true;
+            sendButton.disabled = true;
+            connectionStatus.textContent = statusText;
+        }
+
+        connectButton.addEventListener("click", () => {
+            if (!channelInput.reportValidity()) {
+                return;
+            }
+
+            const channel = channelInput.value;
+            const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+            const nextSocket = new WebSocket(
+                `${protocol}//${window.location.host}/ws/${encodeURIComponent(channel)}`,
+            );
+
+            socket = nextSocket;
+            subscribed = false;
+            channelInput.disabled = true;
+            connectButton.disabled = true;
+            disconnectButton.disabled = false;
+            sendButton.disabled = true;
+            connectionStatus.textContent = "Connecting";
+
+            nextSocket.addEventListener("open", () => {
+                if (socket !== nextSocket) {
+                    return;
+                }
+                connectionStatus.textContent = "Connected; waiting for subscription";
+            });
+
+            nextSocket.addEventListener("message", (event) => {
+                if (socket !== nextSocket) {
+                    return;
+                }
+
+                let frame;
+                try {
+                    frame = JSON.parse(event.data);
+                } catch {
+                    connectionStatus.textContent = "Received an invalid server frame";
+                    return;
+                }
+
+                if (frame.type === "subscribed" && frame.channel === channel) {
+                    subscribed = true;
+                    sendButton.disabled = false;
+                    connectionStatus.textContent = `Subscribed to ${channel}`;
+                    return;
+                }
+
+                if (frame.type === "message" && frame.channel === channel) {
+                    const item = document.createElement("li");
+                    item.textContent = frame.message;
+                    messageList.appendChild(item);
+                }
+            });
+
+            nextSocket.addEventListener("close", () => {
+                if (socket !== nextSocket) {
+                    return;
+                }
+                socket = null;
+                resetUi("Disconnected");
+            });
+
+            nextSocket.addEventListener("error", () => {
+                if (socket !== nextSocket) {
+                    return;
+                }
+                socket = null;
+                nextSocket.close();
+                resetUi("Connection error");
+            });
+        });
+
+        disconnectButton.addEventListener("click", () => {
+            const currentSocket = socket;
+            socket = null;
+            if (currentSocket !== null) {
+                currentSocket.close();
+            }
+            resetUi("Disconnected");
+        });
+
+        sendButton.addEventListener("click", async () => {
+            if (socket === null || !subscribed || !messageInput.reportValidity()) {
+                return;
+            }
+
+            const channel = channelInput.value;
+            sendButton.disabled = true;
+            try {
+                const response = await fetch(
+                    `/channels/${encodeURIComponent(channel)}/messages`,
+                    {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({message: messageInput.value}),
+                    },
+                );
+                const responseBody = await response.text();
+                publishResult.textContent = `HTTP ${response.status}: ${responseBody}`;
+            } catch (error) {
+                const detail = error instanceof Error ? error.message : String(error);
+                publishResult.textContent = `Publish failed: ${detail}`;
+            } finally {
+                sendButton.disabled = !subscribed;
+            }
+        });
+
+        window.addEventListener("beforeunload", () => {
+            if (socket !== null) {
+                socket.close();
+            }
+        });
+    </script>
+</body>
+</html>

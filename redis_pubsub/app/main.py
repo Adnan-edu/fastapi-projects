@@ -3,11 +3,13 @@ import os
 import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path as FilePath
 from typing import Annotated
 
 import anyio
 import redis.asyncio as redis
 from fastapi import FastAPI, Path, WebSocket
+from fastapi.responses import FileResponse
 
 from app.models import CHANNEL_PATTERN, PublishRequest, PublishResponse
 
@@ -27,6 +29,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.get("/", include_in_schema=False)
+async def browser_demo() -> FileResponse:
+    return FileResponse(FilePath(__file__).parent / "static" / "index.html")
 
 
 @app.post("/channels/{channel}/messages", response_model=PublishResponse)

@@ -373,7 +373,7 @@ Keep Redis running. Add each test to the indicated file, run it before the relat
 
 ## Session 4 — Browser demo behind the same public API
 
-- [ ] **4.1 RED: test the browser entry point before adding it.**
+- [x] **4.1 RED: test the browser entry point before adding it.**
 
   Create `${PROJECT_ROOT}/tests/test_browser.py` with `test_browser_demo_is_served`: using `TestClient`, GET `/`, assert status `200`, an HTML content type, and visible markers for a channel input, message input, connect action, send action, and message list. Run:
 
@@ -383,7 +383,7 @@ Keep Redis running. Add each test to the indicated file, run it before the relat
 
   Required initial red: `404`. Do not add `${PROJECT_ROOT}/app/static/index.html` until this result is observed.
 
-- [ ] **4.2 Implement the smallest usable browser client.**
+- [x] **4.2 Implement the smallest usable browser client.**
 
   Add `${PROJECT_ROOT}/app/static/index.html` and serve it at `GET /` (or serve an equivalent HTML response). It must:
 
@@ -395,7 +395,7 @@ Keep Redis running. Add each test to the indicated file, run it before the relat
 
   Re-run the browser test and all tests. Do not mark this complete based only on HTML assertions.
 
-- [ ] **4.3 Manually prove two-browser-tab fan-out.**
+- [x] **4.3 Manually prove two-browser-tab fan-out.**
 
   Terminal A:
 
@@ -512,7 +512,7 @@ Push `main` only when every merged-result check passes. Confirm `main` and `orig
 - [ ] Real Redis fan-out reaches two WebSocket subscribers with the exact documented payload.
 - [ ] Readiness prevents subscription races; channel isolation and boundary validation are tested.
 - [ ] Disconnected clients are cleaned up and publish returns an eventual subscriber count of zero.
-- [ ] Browser fan-out is manually observed in two tabs.
+- [x] Browser fan-out is manually observed in two tabs.
 - [ ] Redis outage returns `503`, recovery works, and no secret/internal error is exposed.
 - [ ] README instructions work from a fresh terminal and explain non-durable semantics.
 - [ ] `uv sync --frozen`, Compose validation, all tests, and bytecode compilation pass.
@@ -525,6 +525,7 @@ Push `main` only when every merged-result check passes. Confirm `main` and `orig
 | 2026-10-30 Session 1 | Completed 1.1–1.5: recorded Python 3.13.14, uv 0.11.28, and the project `.venv` interpreter; added runtime/test dependencies; created `uv.lock`, Redis 8 Compose service, `.env.example`, and pytest discovery/timeout configuration | Not applicable: Session 1 creates no application test or code; Session 2 initial RED remains pending | `uv sync --frozen` and dependency imports passed; Compose validation passed; Redis is healthy and `redis-cli PING` returned `PONG`; ignore rules and pytest configuration verified; no `app/` directory exists | Execute Session 2: add the exact fan-out test and capture pre-implementation RED |
 | 2026-10-30 Session 2 | Completed 2.1–2.4: added the exact public fan-out/cleanup test; implemented the async Redis lifespan, publish route, per-WebSocket Pub/Sub, subscribe readiness, concurrent forwarding/disconnect detection, and shielded resource cleanup | `uv run pytest "$PROJECT_ROOT/tests/test_pubsub.py" -q` before creating `app/`: collection failed as expected with `ModuleNotFoundError: No module named 'app'` | Docker Redis `PING` returned `PONG`; the focused test and `uv run pytest` passed (`1 passed`), including the eventual post-disconnect `subscriber_count == 0`; `compileall` passed; no skips/xfails or resource-cleanup warnings (one Starlette `httpx` deprecation warning); no manual checks in this session | Execute Session 3: validation and channel isolation, one behavior at a time |
 | 2026-10-30 Session 3 | Completed 3.1–3.5: enforced 1–10,000-character messages and the shared 1–128-character channel rule on HTTP and WebSocket; invalid WebSockets close with `1008` before accept or Pub/Sub creation; added channel-isolation and valid-boundary coverage | `uv run pytest "$PWD/tests/test_validation.py::test_message_length_validation" -q`: empty message returned `200` instead of `422`; `uv run pytest "$PWD/tests/test_validation.py::test_publish_rejects_invalid_channel" -q`: invalid channel returned `200` instead of `422`; `uv run pytest "$PWD/tests/test_validation.py::test_websocket_rejects_invalid_channel" -q`: `DID NOT RAISE WebSocketDisconnect` instead of close code `1008` | All focused validation tests passed after their implementations; channel isolation and valid boundaries passed immediately as green characterization tests; `uv run pytest` passed (`6 passed`, no skips/xfails) and `compileall` passed; Docker Redis `PING` returned `PONG`; no manual checks in this session | Execute Session 4: add the browser entry-point test and capture its `404` RED before implementing the demo |
+| 2026-10-30 Session 4 | Completed 4.1–4.3: added the browser entry-point test; served a static browser client at `GET /`; reused the existing HTTP/WebSocket contracts with readiness-gated Send and safe `textContent` rendering; manually verified fan-out, subscriber counts, channel isolation, and disconnect behavior | `uv run pytest "$PWD/tests/test_browser.py" -q` before adding the route or static HTML: expected initial `404`, observed `assert 404 == 200` | Focused browser test passed; `uv run pytest` passed (`7 passed`, no skips/xfails); `compileall` passed; Redis `PING` returned `PONG` and live `GET /` returned `200`. User confirmed all manual checks: `Solo check` reached Tab A once with `subscriber_count == 1`; `Hello from Redis!` reached Tabs A and B once each with count `2`; `Channel isolation` reached A/B once each and not `other-channel` Tab C; after B disconnected, `After disconnect` reached only A with count `1` | Execute Session 5: capture the real Redis outage RED, add safe `503`/recovery behavior, and complete documentation/final verification |
 
 ## 8. Useful recovery commands
 
