@@ -1,7 +1,10 @@
+import subprocess
 import time
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from fastapi import WebSocketDisconnect
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -103,3 +106,47 @@ def test_messages_do_not_cross_channels():
                 "channel": channel_b,
                 "message": "only-b",
             }
+
+
+def test_websocket_closes_with_1011_when_redis_fails():
+    channel = f"test:{uuid4().hex}"
+    project_root = Path(__file__).resolve().parents[1]
+
+    try:
+        with TestClient(app) as client:
+            with client.websocket_connect(f"/ws/{channel}") as subscriber:
+                assert subscriber.receive_json() == {
+                    "type": "subscribed",
+                    "channel": channel,
+                }
+                subprocess.run(
+                    ["docker", "compose", "stop", "redis"],
+                    cwd=project_root,
+                    check=True,
+                    capture_output=True,
+                )
+
+                with pytest.raises(WebSocketDisconnect) as exc_info:
+                    subscriber.receive_json()
+
+                assert exc_info.value.code == 1011
+    finally:
+        subprocess.run(
+            ["docker", "compose", "up", "-d", "redis"],
+            cwd=project_root,
+            check=True,
+            capture_output=True,
+        )
+        deadline = time.monotonic() + 5
+        while True:
+            result = subprocess.run(
+                ["docker", "compose", "exec", "-T", "redis", "redis-cli", "PING"],
+                cwd=project_root,
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0 and result.stdout.strip() == "PONG":
+                break
+            if time.monotonic() >= deadline:
+                pytest.fail("Redis did not recover after WebSocket outage test")
+            time.sleep(0.05)

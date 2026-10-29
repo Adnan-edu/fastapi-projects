@@ -8,8 +8,9 @@ from typing import Annotated
 
 import anyio
 import redis.asyncio as redis
-from fastapi import FastAPI, Path, WebSocket
+from fastapi import FastAPI, HTTPException, Path, WebSocket
 from fastapi.responses import FileResponse
+from redis.exceptions import RedisError
 
 from app.models import CHANNEL_PATTERN, PublishRequest, PublishResponse
 
@@ -41,7 +42,10 @@ async def publish_message(
     channel: Annotated[str, Path(pattern=CHANNEL_PATTERN)],
     request: PublishRequest,
 ) -> PublishResponse:
-    subscriber_count = await app.state.redis_client.publish(channel, request.message)
+    try:
+        subscriber_count = await app.state.redis_client.publish(channel, request.message)
+    except RedisError as exc:
+        raise HTTPException(status_code=503, detail="Redis publish unavailable") from exc
     return PublishResponse(channel=channel, subscriber_count=subscriber_count)
 
 
@@ -90,7 +94,11 @@ async def subscribe_to_channel(websocket: WebSocket, channel: str) -> None:
             asyncio.create_task(forward_messages(websocket, pubsub, channel)),
             asyncio.create_task(watch_disconnect(websocket)),
         }
-        await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        for task in done:
+            task.result()
+    except RedisError:
+        await websocket.close(code=1011)
     finally:
         with anyio.CancelScope(shield=True):
             for task in tasks:

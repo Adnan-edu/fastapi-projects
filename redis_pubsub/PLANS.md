@@ -415,7 +415,7 @@ Keep Redis running. Add each test to the indicated file, run it before the relat
 
 ## Session 5 — Failure behavior, documentation, and final verification
 
-- [ ] **5.1 RED: observe publish behavior during a real Redis outage.**
+- [x] **5.1 RED: observe publish behavior during a real Redis outage.**
 
   With Redis healthy, start Uvicorn on `127.0.0.1:8000`. Then run:
 
@@ -443,17 +443,17 @@ Keep Redis running. Add each test to the indicated file, run it before the relat
 
   Required recovered result: `200` with `subscriber_count: 0` when no subscriber is connected. Also inspect WebSocket error paths: Redis failures must cancel tasks, close dedicated Pub/Sub resources, and use close code `1011` where possible. If this inspection finds a bug, add a public-seam regression test and observe it fail before fixing that bug.
 
-- [ ] **5.2 Write complete operator documentation in `${PROJECT_ROOT}/README.md`.**
+- [x] **5.2 Write complete operator documentation in `${PROJECT_ROOT}/README.md`.**
 
   Include prerequisites (`uv` and Docker Compose), the absolute project root, environment activation, `uv sync`, Redis start/stop/health commands, `REDIS_URL` configuration, Uvicorn startup, `pytest`, the browser walkthrough, and an HTTP `curl` example. Explicitly state that `${PROJECT_ROOT}/.env.example` is a template and is not loaded automatically; export `REDIS_URL` or rely on the local default.
 
   Document both public contracts and example JSON frames, validation limits, `subscriber_count` semantics, readiness-frame rationale, one-Pub/Sub-object-per-WebSocket lifecycle, and graceful shutdown. Include the fire-and-forget/offline-message-loss warning and point to `${PROJECT_ROOT}/Redis_Pub_Sub_Fundamentals.md`. Mention that `/docs` covers HTTP but not WebSocket.
 
-- [ ] **5.3 Review without changing the public contracts.**
+- [x] **5.3 Review without changing the public contracts.**
 
   Inspect every created file. Check for synchronous Redis calls in async routes, shared Pub/Sub objects, missing `aclose()`, uncancelled tasks, publishes before subscription readiness, unsafe browser HTML insertion, secret leakage, tests of private internals, and claims of durability. Run a separate code-review/refactor pass only after all tests are green; after any refactor, rerun all verification.
 
-- [ ] **5.4 Run final verification from the project root.**
+- [x] **5.4 Run final verification from the project root.**
 
   Stop Uvicorn from the manual session, then use a fresh terminal:
 
@@ -508,14 +508,14 @@ Push `main` only when every merged-result check passes. Confirm `main` and `orig
 
 ## 6. Definition of done
 
-- [ ] Initial red evidence is recorded before any application implementation.
-- [ ] Real Redis fan-out reaches two WebSocket subscribers with the exact documented payload.
-- [ ] Readiness prevents subscription races; channel isolation and boundary validation are tested.
-- [ ] Disconnected clients are cleaned up and publish returns an eventual subscriber count of zero.
+- [x] Initial red evidence is recorded before any application implementation.
+- [x] Real Redis fan-out reaches two WebSocket subscribers with the exact documented payload.
+- [x] Readiness prevents subscription races; channel isolation and boundary validation are tested.
+- [x] Disconnected clients are cleaned up and publish returns an eventual subscriber count of zero.
 - [x] Browser fan-out is manually observed in two tabs.
-- [ ] Redis outage returns `503`, recovery works, and no secret/internal error is exposed.
-- [ ] README instructions work from a fresh terminal and explain non-durable semantics.
-- [ ] `uv sync --frozen`, Compose validation, all tests, and bytecode compilation pass.
+- [x] Redis outage returns `503`, recovery works, and no secret/internal error is exposed.
+- [x] README instructions work from a fresh terminal and explain non-durable semantics.
+- [x] `uv sync --frozen`, Compose validation, all tests, and bytecode compilation pass.
 
 ## 7. Session Log (update after every work session)
 
@@ -526,6 +526,7 @@ Push `main` only when every merged-result check passes. Confirm `main` and `orig
 | 2026-10-30 Session 2 | Completed 2.1–2.4: added the exact public fan-out/cleanup test; implemented the async Redis lifespan, publish route, per-WebSocket Pub/Sub, subscribe readiness, concurrent forwarding/disconnect detection, and shielded resource cleanup | `uv run pytest "$PROJECT_ROOT/tests/test_pubsub.py" -q` before creating `app/`: collection failed as expected with `ModuleNotFoundError: No module named 'app'` | Docker Redis `PING` returned `PONG`; the focused test and `uv run pytest` passed (`1 passed`), including the eventual post-disconnect `subscriber_count == 0`; `compileall` passed; no skips/xfails or resource-cleanup warnings (one Starlette `httpx` deprecation warning); no manual checks in this session | Execute Session 3: validation and channel isolation, one behavior at a time |
 | 2026-10-30 Session 3 | Completed 3.1–3.5: enforced 1–10,000-character messages and the shared 1–128-character channel rule on HTTP and WebSocket; invalid WebSockets close with `1008` before accept or Pub/Sub creation; added channel-isolation and valid-boundary coverage | `uv run pytest "$PWD/tests/test_validation.py::test_message_length_validation" -q`: empty message returned `200` instead of `422`; `uv run pytest "$PWD/tests/test_validation.py::test_publish_rejects_invalid_channel" -q`: invalid channel returned `200` instead of `422`; `uv run pytest "$PWD/tests/test_validation.py::test_websocket_rejects_invalid_channel" -q`: `DID NOT RAISE WebSocketDisconnect` instead of close code `1008` | All focused validation tests passed after their implementations; channel isolation and valid boundaries passed immediately as green characterization tests; `uv run pytest` passed (`6 passed`, no skips/xfails) and `compileall` passed; Docker Redis `PING` returned `PONG`; no manual checks in this session | Execute Session 4: add the browser entry-point test and capture its `404` RED before implementing the demo |
 | 2026-10-30 Session 4 | Completed 4.1–4.3: added the browser entry-point test; served a static browser client at `GET /`; reused the existing HTTP/WebSocket contracts with readiness-gated Send and safe `textContent` rendering; manually verified fan-out, subscriber counts, channel isolation, and disconnect behavior | `uv run pytest "$PWD/tests/test_browser.py" -q` before adding the route or static HTML: expected initial `404`, observed `assert 404 == 200` | Focused browser test passed; `uv run pytest` passed (`7 passed`, no skips/xfails); `compileall` passed; Redis `PING` returned `PONG` and live `GET /` returned `200`. User confirmed all manual checks: `Solo check` reached Tab A once with `subscriber_count == 1`; `Hello from Redis!` reached Tabs A and B once each with count `2`; `Channel isolation` reached A/B once each and not `other-channel` Tab C; after B disconnected, `After disconnect` reached only A with count `1` | Execute Session 5: capture the real Redis outage RED, add safe `503`/recovery behavior, and complete documentation/final verification |
+| 2026-10-30 Session 5 | Completed 5.1–5.4: mapped Redis publish failures to safe `503` responses; propagated WebSocket Redis task failures to close `1011` while preserving shielded task/Pub/Sub cleanup; added a real-outage public-seam regression test; wrote complete operator documentation and reviewed all project files | `docker compose stop redis` followed by the documented publish `curl` before implementation returned `500 Internal Server Error` instead of `503`; `uv run pytest "$PWD/tests/test_pubsub.py::test_websocket_closes_with_1011_when_redis_fails" -q` initially timed out after `10s` waiting for a close frame, matching the live pre-fix abnormal close `1006` | The identical stopped-Redis `curl` returned `503` with only `{"detail":"Redis publish unavailable"}`; recovery returned `PONG`, then HTTP `200` with `subscriber_count: 0`. The focused WebSocket test passed, and live Uvicorn closed with `1011` during a real outage. Final `uv sync --frozen`, Compose validation, Redis `PING`, and `compileall` passed; `uv run pytest` reported `8 passed` with no skips/xfails (one known Starlette `httpx` deprecation warning). No new browser checks; Session 4 manual evidence remains valid | Sessions 1–5 complete and verified; next run performs only the final integration gate: merge and verify `redis-pub-sub` on `main` |
 
 ## 8. Useful recovery commands
 
