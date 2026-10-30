@@ -1,150 +1,120 @@
-# FastAPI + Redis Pub/Sub Demo
+# FastAPI + Redis Pub/Sub
 
-A small end-to-end example of live one-to-many messaging: HTTP clients publish text to a Redis channel, and every browser/WebSocket subscriber on that channel receives the message through FastAPI.
+Publish a message over HTTP and deliver it live to every WebSocket subscriber on the same Redis channel.
 
-## Prerequisites and setup
+## How it works
 
-Install [uv](https://docs.astral.sh/uv/) and Docker with Docker Compose. The project uses Python 3.13 (see `.python-version`), which `uv` can provide.
-
-From a fresh terminal:
-
-```bash
-export PROJECT_ROOT="/Users/adnan/Documents/adnanedu/adnanedu/fastapi_projects_new/fastapi_project_adnanedu/fastapi-projects/redis_pubsub"
-cd "$PROJECT_ROOT"
-uv sync --frozen
-source "$PROJECT_ROOT/.venv/bin/activate"
+```text
++-----------+  HTTP POST  +---------+  PUBLISH  +---------------+
+| Publisher | ----------> | FastAPI | --------> | Redis channel |
++-----------+             +---------+           +-------+-------+
+                                                        | message
+                                                        v
++---------------+  WebSocket fan-out  +--------------------------+
+| Browser A + B | <------------------ | FastAPI Redis subscriber |
++---------------+                     +--------------------------+
 ```
 
-The application reads `REDIS_URL`, defaulting to `redis://localhost:6379/0`. `$PROJECT_ROOT/.env.example` is a template only; it is **not loaded automatically**. Export the setting yourself when needed, or rely on the local default:
+Each WebSocket has its own Redis Pub/Sub connection. FastAPI sends a `subscribed` frame only after Redis confirms the subscription, so clients know when it is safe to publish.
+
+## Run the demo
+
+Prerequisites: [uv](https://docs.astral.sh/uv/), Docker with Docker Compose, and Python 3.13. `uv` can install the required Python version.
+
+From the repository root:
+
+```bash
+cd redis_pubsub
+uv sync --frozen
+source .venv/bin/activate
+docker compose up -d redis
+docker compose exec -T redis redis-cli PING
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+The Redis check must print `PONG`. The app uses `redis://localhost:6379/0` by default. To use another Redis server, set `REDIS_URL` before starting Uvicorn:
 
 ```bash
 export REDIS_URL="redis://localhost:6379/0"
 ```
 
-Do not commit real credentials or a local `.env` file.
+`.env.example` is a template; the app does not load it automatically.
 
-## Start Redis and FastAPI
+## Verify browser fan-out
 
-Start the throwaway Redis 8 container and verify its health:
+1. Open `http://127.0.0.1:8000` in two tabs.
+2. In both tabs, enter `notifications`, click **Connect**, and wait for **Subscribed to notifications**.
+3. Send `Hello from Redis!` from one tab.
+4. Confirm both tabs display the message exactly once and the result shows `"subscriber_count": 2`.
+5. Connect a third tab to `other-channel`; publish again to `notifications`. The third tab must receive nothing.
+6. Disconnect one `notifications` tab and publish again. Only the remaining tab receives it, with `"subscriber_count": 1`.
 
-```bash
-cd "$PROJECT_ROOT"
-docker compose up -d redis
-docker compose ps
-docker compose exec -T redis redis-cli PING
-```
+The browser publishes over HTTP and subscribes over WebSocket. HTTP documentation is available at `http://127.0.0.1:8000/docs`; the WebSocket contract is documented below.
 
-The last command must print `PONG`. No volume is configured because this demo intentionally uses non-durable Pub/Sub.
-
-Start Uvicorn in the activated environment:
+## Publish over HTTP
 
 ```bash
-cd "$PROJECT_ROOT"
-uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-Press `Ctrl+C` to stop Uvicorn gracefully. To stop or remove Redis from another terminal:
-
-```bash
-cd "$PROJECT_ROOT"
-docker compose stop redis       # stop only
-docker compose up -d redis      # start it again
-docker compose down             # optional container cleanup
-```
-
-## Run the tests
-
-Keep Docker Redis running, then use another activated terminal:
-
-```bash
-cd "$PROJECT_ROOT"
-source "$PROJECT_ROOT/.venv/bin/activate"
-uv run pytest
-uv run python -m compileall -q "$PROJECT_ROOT/app" "$PROJECT_ROOT/tests"
-```
-
-The integration tests use real Redis and the public HTTP/WebSocket interfaces. One failure-path test deliberately stops and restarts the project's Compose Redis service, so do not run the suite against a Redis instance you cannot interrupt. Each test uses a unique channel; Redis logical databases do not isolate Pub/Sub channels.
-
-## Browser walkthrough
-
-1. Start Redis and Uvicorn, then open `http://127.0.0.1:8000` in two tabs.
-2. In both tabs, enter `notifications`, click **Connect**, and wait for **Subscribed to notifications**. The Send button remains disabled until the server confirms the Redis subscription.
-3. Send `Hello from Redis!` from the first tab. Both tabs should display it exactly once, and the HTTP result should report `subscriber_count` 2. With only one connected tab, the count is 1.
-4. Connect a third tab to `other-channel` and publish again to `notifications`. The third tab should receive nothing.
-5. Disconnect one `notifications` tab and publish again. Only the remaining tab should receive the message, with `subscriber_count` 1.
-
-The browser publishes through HTTP; it does not invent a separate WebSocket publish protocol. Interactive documentation at `http://127.0.0.1:8000/docs` covers HTTP only, not the WebSocket contract documented below.
-
-## HTTP publish contract
-
-```http
-POST /channels/{channel}/messages
-Content-Type: application/json
-
-{"message":"Hello from Redis!"}
-```
-
-For example, with no subscribers:
-
-```bash
-curl --max-time 15 -sS -i -X POST \
+curl --max-time 15 -sS -X POST \
   'http://127.0.0.1:8000/channels/notifications/messages' \
   -H 'Content-Type: application/json' \
   -d '{"message":"Hello from Redis!"}'
 ```
 
-Successful response (`200`):
+With no subscribers, the response is:
 
 ```json
 {"channel":"notifications","subscriber_count":0}
 ```
 
-`subscriber_count` is Redis's `PUBLISH` return value: the number of subscribers to which Redis sent the payload. It is not proof that a browser processed, displayed, or acknowledged the message.
+`subscriber_count` is the number of Redis subscribers that received the payload. It does not confirm that a browser processed or displayed it.
 
-Validation failures return `422`. Channels must be 1–128 characters and match `^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$`. Messages must be JSON strings of 1–10,000 characters; valid text is not trimmed or mutated.
+## Subscribe over WebSocket
 
-If Redis cannot publish, the route returns `503` without exposing credentials or internal exception details:
-
-```json
-{"detail":"Redis publish unavailable"}
-```
-
-After Redis recovers, the shared asynchronous client can reconnect and publish successfully without rebuilding the application.
-
-## WebSocket subscriber contract
-
-Connect to `WS /ws/{channel}`, for example `ws://127.0.0.1:8000/ws/notifications` (the browser uses `wss:` when the page is served over HTTPS). The WebSocket is receive-only for application messages.
-
-After Redis confirms the subscription, the server sends this readiness frame:
+Connect to `ws://127.0.0.1:8000/ws/notifications`. Wait for this readiness frame before publishing:
 
 ```json
 {"type":"subscribed","channel":"notifications"}
 ```
 
-Wait for this frame before publishing. It prevents the race where a publish occurs after the socket opens but before Redis has registered the subscriber. A published payload then arrives as:
+Each published message then arrives as:
 
 ```json
 {"type":"message","channel":"notifications","message":"Hello from Redis!"}
 ```
 
-Subscribers on other channels do not receive that payload. Invalid channels are rejected with close code `1008`. Redis failures close the WebSocket with `1011` where the connection can still close cleanly.
+The WebSocket is receive-only for application messages.
 
-## Connection lifecycle and shutdown
+## Validation and errors
 
-The FastAPI lifespan creates and pings one shared `redis.asyncio` client with response decoding enabled. HTTP routes use that client only for ordinary commands such as `PUBLISH`.
+- Channels: 1–128 characters matching `^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$`.
+- Messages: JSON strings of 1–10,000 characters.
+- Invalid HTTP input: `422`.
+- Invalid WebSocket channel: close code `1008`.
+- Redis publish failure: `503` with `{"detail":"Redis publish unavailable"}`.
+- Redis subscription failure: WebSocket close code `1011` when a clean close is possible.
 
-Each WebSocket creates its own dedicated Redis Pub/Sub object and connection. Pub/Sub connections are stateful, so they are never shared across WebSockets or reused for ordinary commands. The server waits for Redis's subscribe acknowledgment before sending readiness, then concurrently watches Redis messages and client disconnect events. Only Redis `message` events are forwarded; subscription control events are not application messages.
+## Run the tests
 
-On disconnect, server failure, or shutdown, pending tasks are cancelled and awaited, and the dedicated Pub/Sub object is closed with `aclose()`. The shared Redis client remains available to other requests and is closed once by the application lifespan at shutdown. Disconnecting one subscriber therefore does not close Redis for everyone else.
+Keep the project's Docker Redis running and use another terminal:
 
-## Delivery semantics and limitations
+```bash
+cd redis_pubsub
+uv run pytest
+uv run python -m compileall -q app tests
+```
 
-Redis Pub/Sub is live, fire-and-forget messaging—not a durable queue:
+Expected result: **8 passed**, with no skipped or xfailed tests. The integration tests use real Redis and public HTTP/WebSocket interfaces. One test stops and restarts this project's Redis container to verify outage handling.
 
-- Offline or disconnected clients miss messages. There is no history, replay, persistence, or acknowledgment.
-- Redis's per-subscriber output buffers are temporary in-memory socket buffers, not per-channel storage.
-- Use Redis Streams or another durable messaging system when retention, replay, or delivery guarantees are required.
+## Delivery semantics
 
-See `$PROJECT_ROOT/Redis_Pub_Sub_Fundamentals.md` (`Redis_Pub_Sub_Fundamentals.md` in this directory) for the underlying channel, buffering, and delivery concepts.
+Redis Pub/Sub is live, fire-and-forget messaging. Offline clients miss messages; there is no history, replay, persistence, or acknowledgment. Use Redis Streams or another durable system when those guarantees are required.
 
-This example intentionally omits authentication, authorization, TLS termination, multi-process worker coordination, rate limiting, persistence, acknowledgments, pattern subscriptions, and production deployment.
+See [Redis Pub/Sub fundamentals](Redis_Pub_Sub_Fundamentals.md) for the underlying concepts.
+
+## Stop the demo
+
+Press `Ctrl+C` to stop Uvicorn, then run:
+
+```bash
+docker compose down
+```
