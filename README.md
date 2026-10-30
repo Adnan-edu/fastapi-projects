@@ -249,7 +249,23 @@ pytest --redis
 
 ---
 
-### 6. Rate Limiting
+#### Redis Pub/Sub — Live WebSocket Fan-Out (`redis_pubsub/`)
+
+[Open the end-to-end guide](redis_pubsub/README.md). Publish JSON over HTTP and deliver it live to every WebSocket subscriber on the same Redis channel. The project includes a browser demo and integration tests that use real Redis.
+
+```bash
+cd redis_pubsub
+uv sync --frozen
+docker compose up -d redis
+docker compose exec -T redis redis-cli PING  # Expected: PONG
+uv run uvicorn app.main:app --reload
+```
+
+Open `http://127.0.0.1:8000` in two browser tabs to test fan-out.
+
+---
+
+## 6. Rate Limiting
 
 #### [7_fastapi_slowapi_rate_limiting](./7_fastapi_slowapi_rate_limiting)
 Quotes API with IP-based and API-key-based rate limiting, tiered plans (free/pro/admin), fixed vs moving window strategies, and Redis-backed storage.
