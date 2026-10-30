@@ -16,6 +16,7 @@ A comprehensive collection of 18+ production-grade FastAPI projects covering asy
   - [3. Databases & ORMs](#3-databases--orms)
   - [4. Validation](#4-validation)
   - [5. Caching](#5-caching)
+    - [redis-pubsub](#redis-pubsub)
   - [6. Rate Limiting](#6-rate-limiting)
   - [7. Monitoring & Observability](#7-monitoring--observability)
   - [8. Authorization](#8-authorization)
@@ -249,7 +250,7 @@ pytest --redis
 
 ---
 
-#### Redis Pub/Sub — Live WebSocket Fan-Out (`redis_pubsub/`)
+#### [redis-pubsub](./redis_pubsub)
 
 [Open the end-to-end guide](redis_pubsub/README.md). Publish JSON over HTTP and deliver it live to every WebSocket subscriber on the same Redis channel. The project includes a browser demo and integration tests that use real Redis.
 
