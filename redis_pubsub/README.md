@@ -111,6 +111,21 @@ Redis Pub/Sub is live, fire-and-forget messaging. Offline clients miss messages;
 
 See [Redis Pub/Sub fundamentals](Redis_Pub_Sub_Fundamentals.md) for the underlying concepts.
 
+## Recorded workflow (GIF)
+
+The full 3-tab browser workflow from `check-later.md` is verified and captured in chronological order by `automate_3tabs.js`. Intermediate frames show realistic per-character typing; each of the 13 checkpoints is captured only after its message counts and `subscriber_count` have been asserted.
+
+With the demo server and Redis running, regenerate it from the repository root (where Playwright is installed):
+
+```bash
+cd redis_pubsub
+NODE_PATH=../node_modules node automate_3tabs.js
+```
+
+The script uses FFmpeg to create `workflow_full.gif`; the numbered source frames and final tab screenshots are in `gif-frames/`.
+
+![Full 3-tab workflow](workflow_full.gif)
+
 ## Stop the demo
 
 Press `Ctrl+C` to stop Uvicorn, then run:
